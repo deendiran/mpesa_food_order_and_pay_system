@@ -1,5 +1,5 @@
 # models/cart.py
-from . import db
+from models import db
 from sqlalchemy.sql import func
 
 class CartItem(db.Model):

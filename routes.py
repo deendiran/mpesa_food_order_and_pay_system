@@ -6,7 +6,8 @@ import requests
 import json
 import os
 from sqlalchemy.sql import func
-from app import app, db
+from app import app
+from models import db
 from models.user import User
 from models.category import Category
 from models.menu import MenuItem
@@ -96,13 +97,13 @@ def format_phone_number(phone_number):
 @app.route("/<page>")
 def index(page=None):
     """Root endpoint"""
-    return render_template("trial.html")
+    return render_template("index.html")
 
 
 @app.route("/login")
 @app.route("/register")
 def auth_pages():
-    return render_template("trial.html")
+    return render_template("index.html")
 
 
 # User operations

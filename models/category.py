@@ -1,5 +1,5 @@
 # models/category.py
-from . import db
+from models import db
 
 class Category(db.Model):
     __tablename__ = "categories"

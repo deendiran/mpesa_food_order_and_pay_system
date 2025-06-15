@@ -1,5 +1,5 @@
 # models/menu.py
-from . import db
+from models import db
 
 class MenuItem(db.Model):
     __tablename__ = "menu_items"

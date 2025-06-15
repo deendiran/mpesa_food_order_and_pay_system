@@ -4,13 +4,14 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
+from models import db
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
 # Configure SQLite database 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///nourish_net.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///glorious_eats.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config['SECRET_KEY'] = '2898db2a80a4f110e39490e2de8425c8c2523045587c08f1'
 
@@ -33,16 +34,17 @@ app.config["MPESA_TILL_NUMBER"] = "174379"
 app.config["MPESA_BUSINESS_SHORT_CODE"] = "174379"
 app.config["MPESA_CALLBACK_URL"] = "https://d864-41-90-172-126.ngrok-free.app/callback"
 
-# Initialize SQLAlchemy
-db = SQLAlchemy(app)
+# Initialize db with app
+db.init_app(app)
 
-# Import models after db initialization to avoid circular imports
-from models.user import User
-from models.category import Category
-from models.menu import MenuItem
-from models.order import Order, OrderItem, OrderStatusHistory
-from models.payment import Payment, PushRequest
-from models.cart import CartItem
+# Import models after db initialization
+with app.app_context():
+    from models.user import User
+    from models.category import Category
+    from models.menu import MenuItem
+    from models.order import Order, OrderItem, OrderStatusHistory
+    from models.payment import Payment, PushRequest
+    from models.cart import CartItem
 
 # Import routes after models are defined
 from routes import *

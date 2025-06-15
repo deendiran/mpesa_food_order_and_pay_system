@@ -1,5 +1,5 @@
 # models/order.py
-from . import db
+from models import db
 from sqlalchemy.sql import func
 
 class Order(db.Model):
