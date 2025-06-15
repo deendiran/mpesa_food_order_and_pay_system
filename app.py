@@ -11,12 +11,12 @@ app = Flask(__name__)
 CORS(app)
 
 # Configure SQLite database 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///glorious_eats.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///nourish_net.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config['SECRET_KEY'] = '2898db2a80a4f110e39490e2de8425c8c2523045587c08f1'
 
 # Configure session cookie
-app.config['SESSION_COOKIE_NAME'] = 'glorious_eats_session'
+app.config['SESSION_COOKIE_NAME'] = 'nourish_net_session'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True

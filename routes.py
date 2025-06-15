@@ -375,6 +375,29 @@ def get_order(order_id):
     })
 
 
+# In your order deletion endpoint, ensure you return proper JSON
+@app.route('/api/orders/<int:order_id>', methods=['DELETE'])
+def delete_order(order_id):
+    try:
+        order = Order.query.get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': 'Order not found'}), 404
+        
+        # Delete related records first
+        OrderItem.query.filter_by(order_id=order_id).delete()
+        OrderStatusHistory.query.filter_by(order_id=order_id).delete()
+        
+        # Then delete the order
+        db.session.delete(order)
+        db.session.commit()
+        
+        return jsonify({'success': True}), 200  # Explicit JSON response
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route("/api/orders/<int:order_id>/status", methods=["PUT"])
 def update_order_status(order_id):
     if "user_id" not in session:
@@ -768,4 +791,13 @@ def mpesa_callback():
         print(f"Error processing callback: {str(e)}")  # Log the error for debugging
         return jsonify({"success": False, "message": str(e)}), 500
 
+
+# Add an error handler to ensure JSON responses
+@app.errorhandler(500)
+def handle_server_error(e):
+    return jsonify({
+        'success': False,
+        'message': 'Internal server error',
+        'error': str(e)
+    }), 500
 
