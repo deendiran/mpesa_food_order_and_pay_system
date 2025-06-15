@@ -279,14 +279,14 @@
         function showLogin() {
             document.getElementById("registerPage").classList.add('hidden');
             document.getElementById("loginPage").classList.remove('hidden');
-            // document.title = "Login | Nourish Net";
+            document.title = "Login | Glorious Eats";
             history.replaceState({ pageId: 'login' }, '', '/login');
         }
 
         function showRegister() {
             document.getElementById("loginPage").classList.add('hidden');
             document.getElementById("registerPage").classList.remove('hidden');
-            // document.title = "Register | Nourish Net";
+            document.title = "Register | Glorious Eats";
             history.replaceState({ pageId: 'register' }, '', '/register');
         }
 
@@ -412,7 +412,13 @@
                 .then(data => {
                     if (data.success) {
                         localStorage.removeItem('user');
+                        localStorage.removeItem('orders');
+                        localStorage.removeItem('cart');
                         sessionStorage.removeItem('currentPage');
+
+                        // Reset orders array
+                        orders = [];
+                        cart = [];
 
                         appContainer.classList.add('hidden');
                         authContainer.classList.remove('hidden');
@@ -1023,11 +1029,13 @@
         async function createOrder(phoneNumber, total, status) {
             try {
                 const user = JSON.parse(localStorage.getItem('user'));
-                const userId = user ? user.id : null;
+                if (!user) {
+                    throw new Error('Please log in to place an order');
+                }
 
                 const orderData = {
-                    order_id: currentOrderId, // Include this when updating
-                    user_id: userId,
+                    order_id: currentOrderId, // Include this when updating existing order
+                    user_id: user.id, // Ensure user ID is included
                     items: cart.map(item => ({
                         menu_item_id: item.id,
                         quantity: item.quantity,
@@ -1054,47 +1062,9 @@
                     throw new Error(data.message || 'Failed to create/update order');
                 }
 
-                // Update local orders array
-                let orders = JSON.parse(localStorage.getItem('orders')) || [];
+                // Refresh orders from server to get updated data
+                await loadOrders();
 
-                if (currentOrderId) {
-                    // Update existing order in local storage
-                    const orderIndex = orders.findIndex(o => o.id === currentOrderId);
-                    if (orderIndex !== -1) {
-                        orders[orderIndex] = {
-                            ...orders[orderIndex],
-                            items: cart.map(item => ({
-                                id: item.id,
-                                name: item.name,
-                                price: item.price,
-                                quantity: item.quantity
-                            })),
-                            total: total,
-                            status: status,
-                            payment_status: status === 'completed' ? 'completed' : 'pending'
-                        };
-                    }
-                } else {
-                    // Add new order to local storage
-                    const newOrder = {
-                        id: data.order_id,
-                        items: cart.map(item => ({
-                            id: item.id,
-                            name: item.name,
-                            price: item.price,
-                            quantity: item.quantity
-                        })),
-                        total: total,
-                        phone: phoneNumber,
-                        status: status,
-                        payment_status: status === 'completed' ? 'completed' : 'pending',
-                        date: new Date().toLocaleDateString(),
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    };
-                    orders.unshift(newOrder);
-                }
-
-                localStorage.setItem('orders', JSON.stringify(orders));
                 return data.order_id || currentOrderId;
             } catch (error) {
                 console.error('Error creating order:', error);
@@ -1104,61 +1074,113 @@
             }
         }
 
+
         // Orders functions
-        function loadOrders() {
-            filterOrders(currentFilter);
+        async function loadOrders() {
+            try {
+                const response = await fetch('/api/orders');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch orders');
+                }
+
+                const data = await response.json();
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid orders data');
+                }
+
+                // Store orders in local variable and localStorage
+                orders = data;
+                localStorage.setItem('orders', JSON.stringify(orders));
+
+                // Apply current filter
+                filterOrders(currentFilter);
+
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                document.getElementById('ordersGrid').innerHTML = `
+            <div class="order-card">
+                <p style="text-align: center; color: #e74c3c;">Error loading orders: ${error.message}</p>
+            </div>
+        `;
+            }
         }
 
         function filterOrders(status) {
             currentFilter = status;
 
+            // Update active filter button
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event?.target?.classList.add('active') || document.querySelector(`[onclick="filterOrders('${status}')"]`).classList.add('active');
 
-            // Filter and display orders
+            const activeBtn = document.querySelector(`[onclick="filterOrders('${status}')"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            // Filter orders
             const filteredOrders = status === 'all' ? orders : orders.filter(order => order.status === status);
-
             const ordersGrid = document.getElementById('ordersGrid');
 
             if (filteredOrders.length === 0) {
                 ordersGrid.innerHTML = `
-                    <div class = "order-card">
-                        <p style = "text-align = center; color: #7f8c8d;">No ${status === 'all' ? '' : status} orders found</p>
-                    </div>
-                
-                `;
+            <div class="order-card">
+                <p style="text-align: center; color: #7f8c8d;">
+                    No ${status === 'all' ? '' : status} orders found
+                </p>
+            </div>`;
                 return;
             }
 
             ordersGrid.innerHTML = filteredOrders.map(order => `
-    <div class="order-card ${order.status}">
-        <div class="order-header">
-            <h4>Order #${order.id}</h4>
-            <span class="order-status status-${order.status}">${order.status.toUpperCase()}</span>
+        <div class="order-card ${order.status}">
+            <div class="order-header">
+                <h4>Order #${order.id}</h4>
+                <span class="order-status status-${order.status}">
+                    ${order.status.toUpperCase()}
+                </span>
+            </div>
+            <p><strong>Date:</strong> ${formatOrderDate(order.created_at)}</p>
+            <p><strong>Phone:</strong> ${order.customer_phone}</p>
+            <p><strong>Items:</strong></p>
+            <ul style="margin-left: 1rem;">
+                ${order.items.map(item => `
+                    <li>
+                        ${item.name || 'Item'} x${item.quantity} - KSh ${(item.price * item.quantity).toFixed(2)}
+                    </li>
+                `).join('')}
+            </ul>
+            <p><strong>Total: KSh ${order.total_amount.toFixed(2)}</strong></p>
+            <div class="order-actions">
+                ${order.status === 'pending' ? `
+                    <button class="pay-btn" onclick="payOrder(${order.id})">
+                        Pay Now
+                    </button>
+                    <button class="cancel-order-btn" onclick="cancelOrder(${order.id})">
+                        Cancel
+                    </button>
+                ` : ''}
+                ${order.status === 'failed' ? `
+                    <button class="retry-btn" onclick="retryOrder(${order.id})">
+                        Retry
+                    </button>
+                ` : ''}
+                <button class="delete-btn" onclick="confirmDelete(${order.id})">
+                    Delete
+                </button>
+            </div>
         </div>
-        <p><strong>Date:</strong> ${order.date} at ${order.time}</p>
-        <p><strong>Phone:</strong> ${order.phone}</p>
-        <p><strong>Items:</strong></p>
-        <ul style="margin-left: 1rem;">
-            ${order.items.map(item => `<li>${item.name} x${item.quantity} - KSh ${item.price * item.quantity}</li>`).join('')}
-        </ul>
-        <p><strong>Total: KSh ${order.total}</strong></p>
-        <div class="order-actions">
-            ${order.status === 'pending' ? `
-                <button class="pay-btn" onclick="payOrder(${order.id})">Pay Now</button>
-                <button class="cancel-order-btn" onclick="cancelOrder(${order.id})">Cancel Order</button>
-            ` : ''}
-            ${order.status === 'failed' ? `
-                <button class="retry-btn" onclick="retryOrder(${order.id})">Retry Payment</button>
-            ` : ''}
-            <button class="delete-btn" onclick="confirmDelete(${order.id})">Delete</button>
-        </div>
-    </div>
-`
-            ).join('');
+    `).join('');
+        }
 
+
+        function formatOrderDate(dateString) {
+            if (!dateString) return 'Unknown date';
+
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (error) {
+                return dateString; // Return original if parsing fails
+            }
         }
 
         function confirmDelete(orderId) {
@@ -1167,19 +1189,54 @@
             }
         }
 
-        function deleteOrder(orderId) {
-            orders = orders.filter(order => order.id !== orderId);
-            localStorage.setItem('orders', JSON.stringify(orders));
-            filterOrders(currentFilter);
+        async function deleteOrder(orderId) {
+            try {
+                const response = await fetch(`/api/orders/${orderId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Remove from local orders array
+                    orders = orders.filter(order => order.id !== orderId);
+                    localStorage.setItem('orders', JSON.stringify(orders));
+                    filterOrders(currentFilter);
+
+                    // Show success message
+                    alert('Order deleted successfully');
+                } else {
+                    throw new Error(data.message || 'Failed to delete order');
+                }
+            } catch (error) {
+                console.error('Error deleting order:', error);
+                alert('Error deleting order: ' + error.message);
+            }
         }
 
         function payOrder(orderId) {
             const order = orders.find(o => o.id === orderId);
             if (order) {
                 currentOrderId = orderId; // Track the order we're paying
-                cart = [...order.items];
+
+                // Convert order items to cart format
+                cart = order.items.map(item => ({
+                    id: item.menu_item_id || item.id,
+                    name: item.name,
+                    price: parseFloat(item.unit_price || item.price),
+                    quantity: item.quantity
+                }));
+
+                localStorage.setItem('cart', JSON.stringify(cart));
                 updateCartDisplay();
                 showPage('menu');
+
+                // Pre-fill phone number if available
+                const phoneNumberInput = document.getElementById('phoneNumber');
+                if (phoneNumberInput && (order.customer_phone || order.phone)) {
+                    phoneNumberInput.value = order.customer_phone || order.phone;
+                }
+
                 initiatePayment();
             }
         }
@@ -1224,11 +1281,12 @@
 
                 // Set cart to the failed order items
                 cart = order.items.map(item => ({
-                    id: item.id,
+                    id: item.menu_item_id || item.id,
                     name: item.name,
-                    price: item.price,
+                    price: parseFloat(item.unit_price || item.price),
                     quantity: item.quantity
                 }));
+
                 localStorage.setItem('cart', JSON.stringify(cart));
                 updateCartDisplay();
 
@@ -1236,7 +1294,12 @@
                 showPage('menu');
 
                 // Open payment modal with the phone number pre-filled
-                document.getElementById('phoneNumber').value = order.phone;
+                const phoneNumberInput = document.getElementById('phoneNumber');
+                if (phoneNumberInput && (order.customer_phone || order.phone)) {
+                    phoneNumberInput.value = order.customer_phone || order.phone;
+                }
+
+                currentOrderId = orderId; // Set this so we update the existing order
                 initiatePayment();
             } catch (error) {
                 console.error('Error retrying order:', error);

@@ -5,6 +5,7 @@ import base64
 import requests
 import json
 import os
+from sqlalchemy.sql import func
 from app import app, db
 from models.user import User
 from models.category import Category
@@ -95,347 +96,368 @@ def format_phone_number(phone_number):
 @app.route("/<page>")
 def index(page=None):
     """Root endpoint"""
-    return render_template("index.html")
+    return render_template("trial.html")
+
 
 @app.route("/login")
 @app.route("/register")
 def auth_pages():
-    return render_template("index.html")
+    return render_template("trial.html")
+
 
 # User operations
-@app.route('/api/register', methods=['POST'])
+@app.route("/api/register", methods=["POST"])
 def register():
     data = request.get_json()
 
     valid, message = validate_user_data(data)
     if not valid:
-        return jsonify({'success': False, 'message': message}), 400
-    
+        return jsonify({"success": False, "message": message}), 400
+
     try:
         user = User(
-            fullname=data['fullname'],
-            email=data['email'],
-            contacts=data['contact']
+            fullname=data["fullname"], email=data["email"], contacts=data["contact"]
         )
-        user.set_password(data['password'])
-        
+        user.set_password(data["password"])
+
         db.session.add(user)
         db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Registration successful',
-            'user': {
-                'id': user.id,
-                'fullname': user.fullname,
-                'email': user.email,
-                'contact': user.contacts
-            }
-        }), 201
-    
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "message": "Registration successful",
+                    "user": {
+                        "id": user.id,
+                        "fullname": user.fullname,
+                        "email": user.email,
+                        "contact": user.contacts,
+                    },
+                }
+            ),
+            201,
+        )
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
-@app.route('/api/login', methods=['POST'])
+
+@app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json()
-    
+
     valid, message = validate_user_data(data, is_login=True)
     if not valid:
-        return jsonify({'success': False, 'message': message}), 400
-    
-    try: 
-        user = User.query.filter_by(contacts=data['contact']).first()
-    
-        if user and user.check_password(data['password']):
-            session['user_id'] = user.id
+        return jsonify({"success": False, "message": message}), 400
+
+    try:
+        user = User.query.filter_by(contacts=data["contact"]).first()
+
+        if user and user.check_password(data["password"]):
+            session["user_id"] = user.id
             session.permanent = True
-            
+
             # Update last login time
             user.last_login = datetime.now()
             db.session.commit()
-        
-            return jsonify({
-                'success': True,
-                'message': 'Login successful',
-                'user': {
-                    'id': user.id,
-                    'fullname': user.fullname,
-                    'email': user.email,
-                    'contact': user.contacts
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Login successful",
+                    "user": {
+                        "id": user.id,
+                        "fullname": user.fullname,
+                        "email": user.email,
+                        "contact": user.contacts,
+                    },
                 }
-            })
+            )
         else:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid credentials'
-            }), 401
+            return jsonify({"success": False, "message": "Invalid credentials"}), 401
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            'success': False, 
-            'message': str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
-@app.route('/api/check-session', methods=['GET'])
+
+@app.route("/api/check-session", methods=["GET"])
 def check_session():
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
+    if "user_id" in session:
+        user = User.query.get(session["user_id"])
         if user:
-            return jsonify({'valid': True, 'user': user.to_dict()})
-    return jsonify({'valid': False})
+            return jsonify({"valid": True, "user": user.to_dict()})
+    return jsonify({"valid": False})
+
 
 @app.before_request
 def check_valid_session():
     # Skip for auth routes and static files
-    if request.path.startswith('/static/') or request.path in ['/api/login', '/api/register', '/']:
+    if request.path.startswith("/static/") or request.path in [
+        "/api/login",
+        "/api/register",
+        "/",
+    ]:
         return
-        
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
 
-@app.route('/api/user', methods=['GET'])
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+
+# Add a user info endpoint
+@app.route("/api/user", methods=["GET"])
 def get_user_info():
-    if 'user_id' not in session:
-        return jsonify({
-            'success': False,
-            'message': 'Not logged in'
-        }), 401
-    
-    user = User.query.get(session['user_id'])
-    if not user:
-        return jsonify({
-            'success': False,
-            'message': 'User not logged in'
-        }), 404
-    
-    return jsonify({
-        'success': True,
-        'user': {
-            'id': user.id,
-            'fullname': user.fullname,
-            'email': user.email,
-            'contact': user.contacts
-        }
-    })
+    if "user_id" not in session:
+        return jsonify({"success": False, "message": "Not logged in"}), 401
 
-@app.route('/api/logout', methods=['POST'])
+    user = User.query.get(session["user_id"])
+    if not user:
+        return jsonify({"success": False, "message": "User not logged in"}), 404
+
+    return jsonify(
+        {
+            "success": True,
+            "user": {
+                "id": user.id,
+                "fullname": user.fullname,
+                "email": user.email,
+                "contact": user.contacts,
+            },
+        }
+    )
+
+
+@app.route("/api/logout", methods=["POST"])
 def logout():
     session.clear()
-    return jsonify({
-        'success': True, 
-        'message': 'Logged out successfully'
-    })
+    return jsonify({"success": True, "message": "Logged out successfully"})
 
-@app.route('/api/categories', methods=['GET'])
+
+# Add this route for categories
+@app.route("/api/categories", methods=["GET"])
 def get_categories():
     categories = Category.query.filter_by(is_active=True).all()
     return jsonify([category.to_dict() for category in categories])
 
-@app.route('/api/menu/category/<int:category_id>', methods=['GET'])
+
+@app.route("/api/menu/category/<int:category_id>", methods=["GET"])
 def get_menu_by_category(category_id):
     # First verify the category exists
     category = Category.query.get(category_id)
     if not category:
-        return jsonify({'success': False, 'message': 'Category not found'}), 404
-    
+        return jsonify({"success": False, "message": "Category not found"}), 404
+
     # Get only available items in this category
     menu_items = MenuItem.query.filter_by(
-        category_id=category_id,
-        is_available=True
+        category_id=category_id, is_available=True
     ).all()
-    
+
     return jsonify([item.to_dict() for item in menu_items])
 
-@app.route('/api/menu', methods=['GET'])
+
+@app.route("/api/menu", methods=["GET"])
 def get_menu():
     menu_items = MenuItem.query.filter_by(is_available=True).all()
     return jsonify([item.to_dict() for item in menu_items])
 
-@app.route('/api/menu/<int:item_id>', methods=['GET'])
+
+@app.route("/api/menu/<int:item_id>", methods=["GET"])
 def get_menu_item(item_id):
     menu_item = MenuItem.query.get(item_id)
     if not menu_item:
-        return jsonify({'success': False, 'message': 'Menu item not found'}), 404
-    return jsonify({
-        'success': True,
-        'item': menu_item.to_dict()
-    })
+        return jsonify({"success": False, "message": "Menu item not found"}), 404
+    return jsonify({"success": True, "item": menu_item.to_dict()})
 
-@app.route('/api/orders', methods=['POST'])
+
+@app.route("/api/orders", methods=["POST"])
 def create_order():
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    if "user_id" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
 
     data = request.get_json()
 
     # Check if we're updating an existing order
-    if 'order_id' in data and data['order_id']:
-        return update_order(data['order_id'])
+    if "order_id" in data and data["order_id"]:
+        return update_order(data["order_id"])
 
     try:
         # Create an order
         order = Order(
-            user_id=session['user_id'],  # Get user_id from session
-            total_amount=data['total_amount'],
-            customer_phone=data['customer_phone'],
-            status=data.get('status', 'pending'),
-            payment_status=data.get('payment_status', 'pending')
+            user_id=session["user_id"],  # Get user_id from session
+            total_amount=data["total_amount"],
+            customer_phone=data["customer_phone"],
+            status=data.get("status", "pending"),
+            payment_status=data.get("payment_status", "pending"),
         )
 
         db.session.add(order)
         db.session.commit()
 
         # Create order items
-        for item in data['items']:
+        for item in data["items"]:
             order_item = OrderItem(
                 order_id=order.id,
-                menu_item_id=item['menu_item_id'],
-                quantity=item['quantity'],
-                unit_price=item['unit_price'],
-                subtotal=item['subtotal']
+                menu_item_id=item["menu_item_id"],
+                quantity=item["quantity"],
+                unit_price=item["unit_price"],
+                subtotal=item["subtotal"],
             )
             db.session.add(order_item)
 
         db.session.commit()
 
-        return jsonify({
-            'success': True,
-            'order_id': order.id,
-            'message': 'Order created successfully'
-        }), 201
-    
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "order_id": order.id,
+                    "message": "Order created successfully",
+                }
+            ),
+            201,
+        )
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
-@app.route('/api/orders/<int:order_id>', methods=['GET'])
-def get_order(order_id):
+
+@app.route('/api/orders', methods=['GET'])
+def get_user_orders():
     if 'user_id' not in session:
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    try:
+        orders = Order.query.filter_by(user_id=session['user_id']).options(
+            db.joinedload(Order.order_items).joinedload(OrderItem.menu_item)
+        ).all()
+        
+        orders_list = []
+        for order in orders:
+            order_data = order.to_dict()
+            order_data['items'] = []
+            
+            for item in order.order_items:
+                item_data = {
+                    'id': item.id,
+                    'name': item.menu_item.name if item.menu_item else 'Deleted Item',
+                    'menu_item_id': item.menu_item_id,
+                    'quantity': item.quantity,
+                    'price': float(item.unit_price) if item.unit_price else 0.0,
+                    'subtotal': float(item.subtotal) if item.subtotal else 0.0
+                }
+                order_data['items'].append(item_data)
+            
+            orders_list.append(order_data)
+        
+        return jsonify(orders_list)
+    
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-    order = Order.query.filter_by(
-        id=order_id,
-        user_id=session['user_id']
-    ).first_or_404()
+
+
+@app.route("/api/orders/<int:order_id>", methods=["GET"])
+def get_order(order_id):
+    if "user_id" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    order = Order.query.filter_by(id=order_id, user_id=session["user_id"]).first()
+
+    if not order:
+        return jsonify({"success": False, "message": "Order not found"}), 404
 
     return jsonify({
         'success': True,
-        'order': {
-            'id': order.id,
-            'status': order.status,
-            'created_at': order.created_at.isoformat(),
-            'customer_phone': order.customer_phone,
-            'total_amount': float(order.total_amount),
-            'items': [{
-                'id': item.id,
-                'name': item.menu_item.name,  # Ensure this relationship exists
-                'price': float(item.unit_price),
-                'quantity': item.quantity
-            } for item in order.order_items]
-        }
+        'order': order.to_dict()
     })
 
-@app.route('/api/orders/<int:order_id>/status', methods=['PUT'])
+
+@app.route("/api/orders/<int:order_id>/status", methods=["PUT"])
 def update_order_status(order_id):
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-    
+    if "user_id" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
     data = request.get_json()
-    if not data or 'status' not in data:
-        return jsonify({'success': False, 'message': 'Status is required'}), 400
-    
+    if not data or "status" not in data:
+        return jsonify({"success": False, "message": "Status is required"}), 400
+
     try:
-         # Get order and verify it belongs to the current user
-        order = Order.query.filter_by(
-            id=order_id,
-            user_id=session['user_id']
-        ).first()
+        # Get order and verify it belongs to the current user
+        order = Order.query.filter_by(id=order_id, user_id=session["user_id"]).first()
 
         if not order:
-            return jsonify({'success': False, 'message': 'Order not found'}), 404
-        
+            return jsonify({"success": False, "message": "Order not found"}), 404
+
         # Create status history record
         status_history = OrderStatusHistory(
-            order_id=order.id,
-            old_status=order.status,
-            new_status=data['status']
+            order_id=order.id, old_status=order.status, new_status=data["status"]
         )
         db.session.add(status_history)
-        
+
         # Update order status
-        order.status = data['status']
+        order.status = data["status"]
         db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'order': order.to_dict()
-        })
+
+        return jsonify({"success": True, "order": order.to_dict()})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
-@app.route('/api/orders/<int:order_id>', methods=['PUT'])
+
+@app.route("/api/orders/<int:order_id>", methods=["PUT"])
 def update_order(order_id):
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-    
+    if "user_id" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
     data = request.get_json()
-    
+
     try:
         # Get the order and verify it belongs to the current user
-        order = Order.query.filter_by(
-            id=order_id,
-            user_id=session['user_id']
-        ).first()
+        order = Order.query.filter_by(id=order_id, user_id=session["user_id"]).first()
 
         if not order:
-            return jsonify({'success': False, 'message': 'Order not found'}), 404
-        
+            return jsonify({"success": False, "message": "Order not found"}), 404
+
         # Ensure total_amount is provided and valid
-        if 'total_amount' not in data or data['total_amount'] is None:
-            return jsonify({'success': False, 'message': 'Total amount is required'}), 400
+        if "total_amount" not in data or data["total_amount"] is None:
+            return (
+                jsonify({"success": False, "message": "Total amount is required"}),
+                400,
+            )
 
         # Update order fields
-        order.total_amount = float(data['total_amount'])
-        order.status = data.get('status', order.status)
-        order.payment_status = data.get('payment_status', order.payment_status)
-        order.customer_phone = data.get('customer_phone', order.customer_phone)
-        order.updated_at = db.func.now()
-        
+        order.total_amount = float(data["total_amount"])
+        order.status = data.get("status", order.status)
+        order.payment_status = data.get("payment_status", order.payment_status)
+        order.customer_phone = data.get("customer_phone", order.customer_phone)
+        order.updated_at = func.now()
+
         # Clear existing order items
         OrderItem.query.filter_by(order_id=order.id).delete()
-        
+
         # Add new items
-        for item in data['items']:
+        for item in data["items"]:
             order_item = OrderItem(
                 order_id=order.id,
-                menu_item_id=item['menu_item_id'],
-                quantity=item['quantity'],
-                unit_price=item['unit_price'],
-                subtotal=item['subtotal']
+                menu_item_id=item["menu_item_id"],
+                quantity=item["quantity"],
+                unit_price=item["unit_price"],
+                subtotal=item["subtotal"],
             )
             db.session.add(order_item)
-        
+
         db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'order_id': order.id
-        })
-    
+
+        return jsonify({"success": True, "order_id": order.id})
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
-@app.route('/api/make-payment', methods=['POST'])
+
+@app.route("/api/make-payment", methods=["POST"])
 def make_payment():
     data = request.get_json()
 
@@ -459,14 +481,18 @@ def make_payment():
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         passkey = current_app.config["MPESA_PASSKEY"]
         business_short_code = current_app.config["MPESA_BUSINESS_SHORT_CODE"]
-        password = base64.b64encode(f"{business_short_code}{passkey}{timestamp}".encode()).decode()
+        password = base64.b64encode(
+            f"{business_short_code}{passkey}{timestamp}".encode()
+        ).decode()
 
         # 5. Prepare STK push request
-        stk_push_url = f"{current_app.config['MPESA_BASE_URL']}/mpesa/stkpush/v1/processrequest"
-        
+        stk_push_url = (
+            f"{current_app.config['MPESA_BASE_URL']}/mpesa/stkpush/v1/processrequest"
+        )
+
         headers = {
             "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         payload = {
@@ -480,7 +506,7 @@ def make_payment():
             "PhoneNumber": phone,
             "CallBackURL": current_app.config["MPESA_CALLBACK_URL"],
             "AccountReference": f"Order{data['order_id']}",
-            "TransactionDesc": "Food Order Payment"
+            "TransactionDesc": "Food Order Payment",
         }
 
         # 6. Make the request
@@ -490,50 +516,58 @@ def make_payment():
         # 7. Handle response
         if response.status_code == 200 and "ResponseCode" in response_data:
             if response_data["ResponseCode"] == "0":
-                return jsonify({
-                    "success": True,
-                    "message": "Payment initiated",
-                    "checkout_request_id": response_data["CheckoutRequestID"]
-                })
-        
+                return jsonify(
+                    {
+                        "success": True,
+                        "message": "Payment initiated",
+                        "checkout_request_id": response_data["CheckoutRequestID"],
+                    }
+                )
+
         # If we get here, something went wrong
-        return jsonify({
-            "success": False,
-            "error": "STK push failed",
-            "mpesa_response": response_data,
-            "status_code": response.status_code
-        }), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "STK push failed",
+                    "mpesa_response": response_data,
+                    "status_code": response.status_code,
+                }
+            ),
+            400,
+        )
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/test-payment')
+
+# Temporary test endpoint
+@app.route("/test-payment")
 def test_payment():
     test_data = {
         "phone": "254114505949",  # Sandbox test number
         "amount": 1,  # 1 KSH
-        "order_id": 123
+        "order_id": 123,
     }
     return make_payment(test_data)
 
-@app.route('/api/query-payment-status', methods=['POST'])
+
+@app.route("/api/query-payment-status", methods=["POST"])
 def perform_stk_query():
+
     data = request.get_json()
     checkout_request_id = data.get("checkout_request_id")
 
     if not checkout_request_id:
         return jsonify({"error": "Checkout Request ID not provided"}), 400
-    
+
     try:
         # Get access token for M-Pesa API
         access_token = get_access_token()
 
         if not access_token:
             return jsonify({"error": "Failed to get M-Pesa access token"}), 500
-        
+
         # Prepare STK query request
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         password = base64.b64encode(
@@ -555,132 +589,149 @@ def perform_stk_query():
         }
 
         query_payload = {
-            "BusinessShortCode": current_app.config[
-                "MPESA_BUSINESS_SHORT_CODE"
-            ],
+            "BusinessShortCode": current_app.config["MPESA_BUSINESS_SHORT_CODE"],
             "Password": password,
             "Timestamp": timestamp,
             "CheckoutRequestID": checkout_request_id,
         }
 
         # Send STK query request
-        response = requests.post(
-            query_url, headers=query_headers, json=query_payload
-        )
+        response = requests.post(query_url, headers=query_headers, json=query_payload)
 
         return jsonify(response.json())
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/check-payment-status/<checkout_request_id>')
+
+@app.route("/check-payment-status/<checkout_request_id>")
 def check_status(checkout_request_id):
     access_token = get_access_token()
     if not access_token:
         return jsonify({"error": "No token"}), 500
-        
+
     url = f"{current_app.config['MPESA_BASE_URL']}/mpesa/stkpushquery/v1/query"
-    
+
     headers = {
         "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-    
+
     payload = {
         "BusinessShortCode": current_app.config["MPESA_BUSINESS_SHORT_CODE"],
-        "Password": base64.b64encode(f"{current_app.config['MPESA_BUSINESS_SHORT_CODE']}{current_app.config['MPESA_PASSKEY']}{datetime.now().strftime('%Y%m%d%H%M%S')}".encode()).decode(),
+        "Password": base64.b64encode(
+            f"{current_app.config['MPESA_BUSINESS_SHORT_CODE']}{current_app.config['MPESA_PASSKEY']}{datetime.now().strftime('%Y%m%d%H%M%S')}".encode()
+        ).decode(),
         "Timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
-        "CheckoutRequestID": checkout_request_id
+        "CheckoutRequestID": checkout_request_id,
     }
-    
+
     response = requests.post(url, json=payload, headers=headers)
     return jsonify(response.json())
 
-@app.route('/test-mpesa-token')
+
+@app.route("/test-mpesa-token")
 def test_mpesa_token():
     token = get_access_token()
     if token:
-        return jsonify({'success': True, 'token': token})
-    return jsonify({'success': False, 'error': 'Failed to get token'})
+        return jsonify({"success": True, "token": token})
+    return jsonify({"success": False, "error": "Failed to get token"})
 
-@app.route('/api/mpesa-callback', methods=['GET'])
+
+@app.route("/api/mpesa-callback", methods=["GET"])
 def callback_verification():
     """Required for M-Pesa URL verification"""
     return jsonify({"status": "ok"}), 200
 
-@app.route('/api/mpesa-callback', methods=['POST'])
+
+@app.route("/api/mpesa-callback", methods=["POST"])
 def mpesa_callback():
     try:
         current_app.logger.info("Raw MPESA callback data: %s", request.data)
         data = request.get_json()
-        
+
         if not data:
             current_app.logger.error("No data received in callback")
-            return jsonify({'success': False, 'message': 'No data received'}), 400
-        
-        callback_data = data.get('Body', {}).get('stkCallback', {})
+            return jsonify({"success": False, "message": "No data received"}), 400
+
+        callback_data = data.get("Body", {}).get("stkCallback", {})
         current_app.logger.info("Callback data: %s", callback_data)
-        
+
         if not callback_data:
             current_app.logger.error("Invalid callback data structure")
-            return jsonify({'success': False, 'message': 'Invalid callback data'}), 400
-            
-        result_code = callback_data.get('ResultCode')
-        checkout_request_id = callback_data.get('CheckoutRequestID')
-        current_app.logger.info("ResultCode: %s, CheckoutRequestID: %s", result_code, checkout_request_id)
+            return jsonify({"success": False, "message": "Invalid callback data"}), 400
 
-        result_desc = callback_data.get('ResultDesc')
-        callback_metadata = callback_data.get('CallbackMetadata', {}).get('Item', [])
-        
+        result_code = callback_data.get("ResultCode")
+        checkout_request_id = callback_data.get("CheckoutRequestID")
+        current_app.logger.info(
+            "ResultCode: %s, CheckoutRequestID: %s", result_code, checkout_request_id
+        )
+
+        result_desc = callback_data.get("ResultDesc")
+        callback_metadata = callback_data.get("CallbackMetadata", {}).get("Item", [])
+
         # Find the payment record via PushRequest first
         push_request = PushRequest.query.filter_by(
             checkout_request_id=checkout_request_id
         ).first()
-        
+
         if not push_request:
-            current_app.logger.error("PushRequest not found for checkout ID: %s", checkout_request_id)
-            return jsonify({'success': False, 'message': 'Transaction not found'}), 404
+            current_app.logger.error(
+                "PushRequest not found for checkout ID: %s", checkout_request_id
+            )
+            return jsonify({"success": False, "message": "Transaction not found"}), 404
 
         payment = push_request.payment
         if not payment:
-            current_app.logger.error("Payment not found for PushRequest ID: %s", push_request.id)
-            return jsonify({'success': False, 'message': 'Payment record not found'}), 404
-    
+            current_app.logger.error(
+                "Payment not found for PushRequest ID: %s", push_request.id
+            )
+            return (
+                jsonify({"success": False, "message": "Payment record not found"}),
+                404,
+            )
+
         order = payment.order
         if not order:
             current_app.logger.error("Order not found for Payment ID: %s", payment.id)
-            return jsonify({'success': False, 'message': 'Order not found'}), 404
-        
+            return jsonify({"success": False, "message": "Order not found"}), 404
+
         # Update payment status based on result code
         if result_code == 0:
             # Success - extract payment details
-            payment.status = 'completed'
+            payment.status = "completed"
             payment.mpesa_receipt_number = next(
-                (item['Value'] for item in callback_metadata 
-                if item.get('Name') == 'MpesaReceiptNumber'), None
+                (
+                    item["Value"]
+                    for item in callback_metadata
+                    if item.get("Name") == "MpesaReceiptNumber"
+                ),
+                None,
             )
 
             # Add status history
             status_history = OrderStatusHistory(
-                order_id=order.id,
-                old_status=order.status,
-                new_status='confirmed'
+                order_id=order.id, old_status=order.status, new_status="confirmed"
             )
             db.session.add(status_history)
-    
+
             payment_history = OrderStatusHistory(
                 order_id=order.id,
                 old_status=order.payment_status,
-                new_status='completed'
+                new_status="completed",
             )
             db.session.add(payment_history)
-            
+
             # Extract transaction date if available
             transaction_date_str = next(
-                (item['Value'] for item in callback_metadata 
-                if item.get('Name') == 'TransactionDate'), None
+                (
+                    item["Value"]
+                    for item in callback_metadata
+                    if item.get("Name") == "TransactionDate"
+                ),
+                None,
             )
-            
+
             if transaction_date_str:
                 try:
                     transaction_date = datetime.strptime(
@@ -689,139 +740,31 @@ def mpesa_callback():
                     payment.created_at = transaction_date
                 except ValueError:
                     pass
-            
+
             # Update order status
             order = payment.order
             if order:
-                order.status = 'confirmed'  
-                order.payment_status = 'completed'
+                order.status = "confirmed"
+                order.payment_status = "completed"
                 order.mpesa_transaction_id = payment.mpesa_receipt_number
         else:
             # Failure
-            payment.status = 'failed'
+            payment.status = "failed"
             payment.error_message = result_desc
-            
+
             # Update order status
             order = payment.order
             if order:
-                order.status = 'cancelled'  
-                order.payment_status = 'failed'
-        
+                order.status = "cancelled"
+                order.payment_status = "failed"
+
         db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Callback processed successfully'})
-    
+
+        return jsonify({"success": True, "message": "Callback processed successfully"})
+
     except Exception as e:
         db.session.rollback()
         print(f"Error processing callback: {str(e)}")  # Log the error for debugging
-        return jsonify({
-            'success': False, 
-            'message': str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/api/cart', methods=['GET', 'POST', 'DELETE'])
-def cart_operations():
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-
-    user_id = session['user_id']
-
-    if request.method == 'POST':
-        data = request.get_json()
-        try:
-            # Check if item already exists in cart
-            existing_item = CartItem.query.filter_by(
-                user_id=user_id,
-                menu_item_id=data['menu_item_id']
-            ).first()
-
-            if existing_item:
-                existing_item.quantity += data.get('quantity', 1)
-            else:
-                cart_item = CartItem(
-                    user_id=user_id,
-                    menu_item_id=data['menu_item_id'],
-                    quantity=data.get('quantity', 1)
-                )
-                db.session.add(cart_item)
-            
-            db.session.commit()
-            return jsonify({'success': True})
-
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'success': False, 'message': str(e)}), 500
-
-    elif request.method == 'DELETE':
-        item_id = request.args.get('id')
-        try:
-            cart_item = CartItem.query.filter_by(
-                id=item_id,
-                user_id=user_id
-            ).first()
-
-            if cart_item:
-                db.session.delete(cart_item)
-                db.session.commit()
-                return jsonify({'success': True})
-            return jsonify({'success': False, 'message': 'Item not found'}), 404
-
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'success': False, 'message': str(e)}), 500
-
-    # GET request
-    cart_items = CartItem.query.filter_by(user_id=user_id).all()
-    cart_data = []
-    
-    for item in cart_items:
-        menu_item = MenuItem.query.get(item.menu_item_id)
-        if menu_item:
-            cart_data.append({
-                'id': item.id,
-                'menu_item_id': item.menu_item_id,
-                'name': menu_item.name,
-                'price': menu_item.price,
-                'quantity': item.quantity,
-                'image_url': menu_item.image_url
-            })
-    
-    return jsonify(cart_data)
-
-@app.route('/api/cart/clear', methods=['POST'])
-def clear_cart():
-    if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-
-    try:
-        CartItem.query.filter_by(user_id=session['user_id']).delete()
-        db.session.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/cart/count', methods=['GET'])
-def cart_count():
-    if 'user_id' not in session:
-        return jsonify({'count': 0})
-
-    count = CartItem.query.filter_by(user_id=session['user_id']).count()
-    return jsonify({'count': count})
-
-# Error handlers
-@app.errorhandler(404)
-def not_found_error(error):
-    return jsonify({
-        'success': False,
-        'message': 'Resource not found'
-    }), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    db.session.rollback()
-    return jsonify({
-        'success': False,
-        'message': 'Internal server error'
-    }), 500
