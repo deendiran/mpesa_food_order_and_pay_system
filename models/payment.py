@@ -51,7 +51,7 @@ class PushRequest(db.Model):
         db.DateTime, default=func.now(), onupdate=func.now()
     )
 
-    # Relationship with Ticket model
+    # Relationship with Payment model
     payment = db.relationship("Payment", back_populates="push_requests")
 
     def to_dict(self):
