@@ -116,18 +116,6 @@
                         <li><a href="#" onclick="logout()">Logout</a></li>
                     </ul>
                 </div>
-
-                <div class="searchBox">
-                    <div class="searchToggle">
-                        <i class="fa-regular fa-x cancel"></i>
-                        <i class="fa-solid fa-magnifying-glass search"></i>
-                    </div>
-
-                    <div class="search-field">
-                        <input type="text" placeholder="Search food...">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                    </div>
-                </div>
             </div>
         </nav>
 
@@ -236,7 +224,6 @@
         // DOM Elements
         const body = document.querySelector("body"),
             nav = document.querySelector("nav"),
-            searchToggle = document.querySelector(".searchToggle"),
             sidebarOpen = document.querySelector(".sidebarOpen"),
             sidebarClose = document.querySelector(".sidebarClose"),
             authContainer = document.getElementById("authContainer"),
@@ -244,11 +231,6 @@
             phoneNumber = document.getElementById("phoneNumber"),
             phoneInput = document.getElementById("phoneInput"),
             loginPhoneInput = document.getElementById("loginPhoneInput");
-
-        // js code to toggle search box
-        searchToggle.addEventListener("click", () => {
-            searchToggle.classList.toggle("active");
-        });
 
 
         //   js code to toggle sidebar
