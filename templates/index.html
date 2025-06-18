@@ -109,10 +109,6 @@
                         <li><a href="#" onclick="showPage('menu')">Menu</a></li>
                         <li><a href="#" onclick="showPage('orders')">Orders</a></li>
                         <li><a href="#" onclick="showProfilePage()">Profile</a></li>
-                        <li><a href="/admin" class="admin-link" style="display: none;">
-                                <i class="fa-solid fa-lock"></i> Admin
-                            </a>
-                        </li>
                         <li><a href="#" onclick="logout()">Logout</a></li>
                     </ul>
                 </div>
@@ -1295,20 +1291,6 @@
             return id;
         }
 
-
-
-        // Secret admin activation (triple-click logo)
-        document.querySelector('.logo').addEventListener('click', function (e) {
-            if (e.detail === 3) { // Triple-click
-                const password = prompt("Enter admin password:");
-                if (password === "admin123") { // Change this!
-                    localStorage.setItem('isAdmin', 'true');
-                    document.querySelector('.admin-link').style.display = 'block';
-                    alert("Admin mode activated");
-                }
-            }
-        });
-
         // Initialize the app
         document.addEventListener('DOMContentLoaded', async function () {
             setupUserDropdown();
@@ -1360,14 +1342,6 @@
             document.getElementById('paymentModal')?.classList.remove('active');
         });
 
-
-
-        // Check for existing admin session on load
-        document.addEventListener('DOMContentLoaded', function () {
-            if (localStorage.getItem('isAdmin')) {
-                document.querySelector('.admin-link').style.display = 'block';
-            }
-        });
 
     </script>
 </body>
