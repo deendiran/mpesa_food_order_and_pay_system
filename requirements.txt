@@ -5,3 +5,4 @@ Flask-SQLAlchemy
 Flask-CORS
 requests
 python-dotenv
+gunicorn
